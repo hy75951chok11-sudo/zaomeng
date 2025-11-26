@@ -292,6 +292,71 @@
       backdrop-filter: blur(8px);
     }
 
+    .race-banner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 3rem;
+      color: #e5e7eb;
+      text-shadow: 0 0 16px rgba(0, 0, 0, 0.7);
+      pointer-events: none;
+      display: none;
+    }
+
+    .mobile-controls {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      pointer-events: none;
+    }
+
+    .mobile-controls__left,
+    .mobile-controls__right {
+      display: flex;
+      gap: 12px;
+      pointer-events: auto;
+    }
+
+    .mobile-controls button {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(15, 23, 42, 0.85);
+      color: #e5e7eb;
+      font-size: 1.25rem;
+      font-weight: 600;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.1s ease;
+    }
+
+    .mobile-controls button:active {
+      transform: translateY(1px) scale(0.97);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+      background: rgba(15, 23, 42, 0.95);
+    }
+
+    .mobile-controls__right button {
+      width: 72px;
+      border-radius: 999px;
+      font-size: 0.9rem;
+    }
+
+    @media (min-width: 821px) {
+      .mobile-controls {
+        display: none;
+      }
+    }
+
     @media (max-width: 480px) {
       .card {
         padding: 28px 24px;
@@ -348,7 +413,20 @@
     <canvas id="gameCanvas" width="960" height="540"></canvas>
     <div class="hud">
       <span id="hud-player">玩家：游客</span>
-      <span id="hud-info">方向键移动 · 空格加速</span>
+      <span id="hud-lap">圈数：0/3</span>
+      <span id="hud-time">时间：0.0s</span>
+      <span id="hud-rank">名次：1/4</span>
+    </div>
+    <div id="race-banner" class="race-banner"></div>
+    <div class="mobile-controls">
+      <div class="mobile-controls__left">
+        <button type="button" id="control-left">←</button>
+        <button type="button" id="control-right">→</button>
+      </div>
+      <div class="mobile-controls__right">
+        <button type="button" id="control-accel">油门</button>
+        <button type="button" id="control-brake">刹车</button>
+      </div>
     </div>
   </section>
 
@@ -364,13 +442,50 @@
     const gameScreen = document.getElementById("game-screen");
     const gameCanvas = document.getElementById("gameCanvas");
     const hudPlayer = document.getElementById("hud-player");
+    const hudLap = document.getElementById("hud-lap");
+    const hudTime = document.getElementById("hud-time");
+    const hudRank = document.getElementById("hud-rank");
+    const raceBanner = document.getElementById("race-banner");
+    const controlLeft = document.getElementById("control-left");
+    const controlRight = document.getElementById("control-right");
+    const controlAccel = document.getElementById("control-accel");
+    const controlBrake = document.getElementById("control-brake");
 
     let gameStarted = false;
     let ctx;
     let kart;
+    let aiKarts = [];
     let keys = {};
     let lastTime = 0;
     let roadOffset = 0;
+    let curveOffset = 0;
+
+    const maxLaps = 3;
+    let currentLap = 0;
+    let raceTime = 0;
+    let racePhase = "idle"; // "countdown" | "running" | "finished"
+    let countdown = 3;
+    let finishLineY = 0;
+    let prevKartY = 0;
+    let finalRank = null;
+
+    function bindControlButton(el, key) {
+      if (!el) return;
+      const activate = (e) => {
+        if (e.cancelable) e.preventDefault();
+        keys[key] = true;
+      };
+      const deactivate = (e) => {
+        if (e.cancelable) e.preventDefault();
+        keys[key] = false;
+      };
+
+      el.addEventListener("touchstart", activate, { passive: false });
+      el.addEventListener("touchend", deactivate, { passive: false });
+      el.addEventListener("touchcancel", deactivate, { passive: false });
+      el.addEventListener("mousedown", activate);
+      window.addEventListener("mouseup", deactivate);
+    }
 
     function showGlobalError(message) {
       globalError.textContent = message;
@@ -424,8 +539,48 @@
         accel: 0.35,
         friction: 0.08,
         turnSpeed: 0.09,
-        angle: 0
+        angle: 0,
+        distance: 0,
+        // 赛博风玩家赛车配色
+        bodyColor: "#6366f1",   // 霓虹靛蓝
+        accentColor: "#22d3ee"  // 亮青色中线
       };
+
+      // 多辆 AI 车
+      aiKarts = [];
+      const baseY = ch - 260;
+      const baseX = cw / 2;
+      for (let i = 0; i < 3; i++) {
+        let bodyColor;
+        let accentColor;
+        if (i === 0) {
+          // 左侧对手：霓虹洋红
+          bodyColor = "#ec4899";
+          accentColor = "#f97316";
+        } else if (i === 1) {
+          // 中间对手：赛博青绿
+          bodyColor = "#22c55e";
+          accentColor = "#a855f7";
+        } else {
+          // 右侧对手：电光蓝
+          bodyColor = "#0ea5e9";
+          accentColor = "#facc15";
+        }
+
+        aiKarts.push({
+          x: baseX + (i - 1) * 90,
+          y: baseY - i * 140,
+          width: 40,
+          height: 70,
+          speed: 3.5 + i * 0.6,
+          maxSpeed: 6 + i * 0.4,
+          angle: 0,
+          drift: Math.random() * Math.PI * 2,
+          distance: 0,
+          bodyColor,
+          accentColor
+        });
+      }
 
       if (playerName) {
         hudPlayer.textContent = "玩家：" + playerName;
@@ -434,6 +589,22 @@
       keys = {};
       roadOffset = 0;
       lastTime = 0;
+
+      // 比赛状态初始化
+      finishLineY = ch * 0.25;
+      prevKartY = kart.y;
+      currentLap = 0;
+      raceTime = 0;
+      racePhase = "countdown";
+      countdown = 3;
+      hudLap.textContent = `圈数：0/${maxLaps}`;
+      hudTime.textContent = "时间：0.0s";
+      raceBanner.style.display = "block";
+      raceBanner.textContent = "3";
+      finalRank = null;
+      const totalRacers = 1 + aiKarts.length;
+      hudRank.textContent = `名次：1/${totalRacers}`;
+
       gameStarted = true;
       requestAnimationFrame(gameLoop);
     }
@@ -451,6 +622,12 @@
     window.addEventListener("keyup", (e) => {
       keys[e.key] = false;
     });
+
+    // 绑定虚拟按键到键盘控制
+    bindControlButton(controlLeft, "ArrowLeft");
+    bindControlButton(controlRight, "ArrowRight");
+    bindControlButton(controlAccel, "ArrowUp");
+    bindControlButton(controlBrake, "ArrowDown");
 
     function updateKart(dt) {
       if (!kart) return;
@@ -494,8 +671,9 @@
       const cw = gameCanvas.width;
       const ch = gameCanvas.height;
       const roadWidth = cw * 0.55;
-      const roadLeft = (cw - roadWidth) / 2 + 20;
-      const roadRight = roadLeft + roadWidth - 40;
+      const centerX = cw / 2 + curveOffset;
+      const roadLeft = centerX - roadWidth / 2 + 20;
+      const roadRight = centerX + roadWidth / 2 - 40;
 
       if (kart.x - kart.width / 2 < roadLeft) {
         kart.x = roadLeft + kart.width / 2;
@@ -514,6 +692,185 @@
       }
 
       roadOffset += kart.speed * dt * 0.4;
+      if (kart.speed > 0) {
+        kart.distance += kart.speed * dt;
+      }
+
+      // 和 AI 碰撞
+      for (const ai of aiKarts) {
+        const dx = kart.x - ai.x;
+        const dy = kart.y - ai.y;
+        const overlapX = Math.abs(dx) < (kart.width + ai.width) / 2;
+        const overlapY = Math.abs(dy) < (kart.height + ai.height) / 2;
+        if (overlapX && overlapY) {
+          kart.speed *= 0.5;
+          const len = Math.hypot(dx, dy) || 1;
+          kart.x += (dx / len) * 6;
+          kart.y += (dy / len) * 6;
+        }
+      }
+
+      // 计算圈数
+      if (racePhase === "running") {
+        if (prevKartY >= finishLineY && kart.y < finishLineY && kart.speed > 0) {
+          currentLap += 1;
+          hudLap.textContent = `圈数：${currentLap}/${maxLaps}`;
+          if (currentLap >= maxLaps) {
+            racePhase = "finished";
+            const totalRacers = 1 + aiKarts.length;
+            let rank = 1;
+            for (const ai of aiKarts) {
+              if (ai.distance > kart.distance) rank++;
+            }
+            finalRank = rank;
+            raceBanner.style.display = "block";
+            raceBanner.textContent = `完赛 ${raceTime.toFixed(1)}s · 名次 ${rank}/${totalRacers}`;
+          }
+        }
+        prevKartY = kart.y;
+      }
+    }
+
+    function updateAIKart(dt) {
+      if (!aiKarts || aiKarts.length === 0) return;
+
+      const cw = gameCanvas.width;
+      const ch = gameCanvas.height;
+      const roadWidth = cw * 0.55;
+      const centerX = cw / 2 + curveOffset;
+      const roadLeft = centerX - roadWidth / 2 + 40;
+      const roadRight = centerX + roadWidth / 2 - 80;
+
+      for (const ai of aiKarts) {
+        ai.drift += dt * 0.015;
+        ai.x += Math.sin(ai.drift) * 0.9;
+
+        // 沿赛道向前
+        ai.y -= ai.speed * dt;
+        ai.distance += ai.speed * dt;
+
+        // 保持在赛道内
+        if (ai.x < roadLeft) ai.x = roadLeft;
+        if (ai.x > roadRight) ai.x = roadRight;
+
+        // 跑出屏幕就从下方回到赛道
+        if (ai.y < -120) {
+          ai.y = ch + 120;
+          ai.drift = Math.random() * Math.PI * 2;
+        }
+      }
+    }
+
+    function updateRankHUD() {
+      if (!hudRank || !kart) return;
+      const totalRacers = 1 + aiKarts.length;
+      let rank;
+      if (racePhase === "finished" && finalRank !== null) {
+        rank = finalRank;
+      } else {
+        rank = 1;
+        for (const ai of aiKarts) {
+          if (ai.distance > kart.distance) rank++;
+        }
+      }
+      hudRank.textContent = `名次：${rank}/${totalRacers}`;
+    }
+
+    // Helper to draw a skinned kart sprite
+    function drawKartSprite(ctx, kartObj, baseColor, accentColor, isPlayer) {
+      if (!kartObj) return;
+      ctx.save();
+      ctx.translate(kartObj.x, kartObj.y);
+      ctx.rotate(kartObj.angle || 0);
+
+      const w = kartObj.width;
+      const h = kartObj.height;
+
+      // Shadow
+      ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+      ctx.beginPath();
+      ctx.ellipse(0, h * 0.55, w * 0.9, h * 0.35, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Main body (rounded rectangle)
+      const bx = -w / 2;
+      const by = -h / 2;
+      const bw = w;
+      const bh = h;
+      const r = 10;
+
+      ctx.beginPath();
+      ctx.moveTo(bx + r, by);
+      ctx.lineTo(bx + bw - r, by);
+      ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + r);
+      ctx.lineTo(bx + bw, by + bh - r);
+      ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - r, by + bh);
+      ctx.lineTo(bx + r, by + bh);
+      ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - r);
+      ctx.lineTo(bx, by + r);
+      ctx.quadraticCurveTo(bx, by, bx + r, by);
+      ctx.closePath();
+      ctx.fillStyle = baseColor;
+      ctx.fill();
+
+      // Center racing stripe
+      ctx.fillStyle = accentColor;
+      ctx.fillRect(-w * 0.18, -h * 0.45, w * 0.36, h * 0.9);
+
+      // Cockpit canopy
+      ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
+      ctx.beginPath();
+      const canopyW = w * 0.46;
+      const canopyH = h * 0.45;
+      const canopyX = -canopyW / 2;
+      const canopyY = -canopyH * 0.1 - canopyH / 2;
+      const canopyR = 6;
+      ctx.moveTo(canopyX + canopyR, canopyY);
+      ctx.lineTo(canopyX + canopyW - canopyR, canopyY);
+      ctx.quadraticCurveTo(canopyX + canopyW, canopyY, canopyX + canopyW, canopyY + canopyR);
+      ctx.lineTo(canopyX + canopyW, canopyY + canopyH - canopyR);
+      ctx.quadraticCurveTo(
+        canopyX + canopyW,
+        canopyY + canopyH,
+        canopyX + canopyW - canopyR,
+        canopyY + canopyH
+      );
+      ctx.lineTo(canopyX + canopyR, canopyY + canopyH);
+      ctx.quadraticCurveTo(
+        canopyX,
+        canopyY + canopyH,
+        canopyX,
+        canopyY + canopyH - canopyR
+      );
+      ctx.lineTo(canopyX, canopyY + canopyR);
+      ctx.quadraticCurveTo(canopyX, canopyY, canopyX + canopyR, canopyY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Player highlight
+      if (isPlayer) {
+        ctx.strokeStyle = "rgba(248, 250, 252, 0.85)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-w * 0.3, -h * 0.45);
+        ctx.lineTo(-w * 0.05, -h * 0.6);
+        ctx.stroke();
+      }
+
+      // Wheels
+      ctx.fillStyle = "#111827";
+      const wheelW = 7;
+      const wheelH = 18;
+      ctx.fillRect(-w / 2 - wheelW + 2, -h / 2 + 6, wheelW, wheelH);
+      ctx.fillRect(-w / 2 - wheelW + 2, h / 2 - wheelH - 6, wheelW, wheelH);
+      ctx.fillRect(w / 2 - 2, -h / 2 + 6, wheelW, wheelH);
+      ctx.fillRect(w / 2 - 2, h / 2 - wheelH - 6, wheelW, wheelH);
+
+      // Rear brake bar
+      ctx.fillStyle = "#f97373";
+      ctx.fillRect(-w * 0.28, h / 2 - 10, w * 0.22, 6);
+
+      ctx.restore();
     }
 
     function drawGame() {
@@ -526,8 +883,9 @@
       ctx.fillRect(0, 0, cw, ch);
 
       const roadWidth = cw * 0.55;
-      const roadLeft = (cw - roadWidth) / 2;
-      const roadRight = roadLeft + roadWidth;
+      const centerX = cw / 2 + curveOffset;
+      const roadLeft = centerX - roadWidth / 2;
+      const roadRight = centerX + roadWidth / 2;
 
       const grad = ctx.createLinearGradient(roadLeft, 0, roadRight, 0);
       grad.addColorStop(0, "#020617");
@@ -551,46 +909,81 @@
       ctx.beginPath();
       const dashY = (roadOffset % 40) - 40;
       for (let y = dashY; y < ch + 40; y += 40) {
-        ctx.moveTo(cw / 2, y);
-        ctx.lineTo(cw / 2, y + 20);
+        ctx.moveTo(centerX, y);
+        ctx.lineTo(centerX, y + 20);
       }
       ctx.stroke();
       ctx.setLineDash([]);
 
+      // 终点线
+      ctx.strokeStyle = "#facc15";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(roadLeft + 20, finishLineY);
+      ctx.lineTo(roadRight - 20, finishLineY);
+      ctx.stroke();
+
+      // Draw AI karts with赛博风配色
+      if (aiKarts && aiKarts.length) {
+        for (const ai of aiKarts) {
+          drawKartSprite(
+            ctx,
+            ai,
+            ai.bodyColor || "#38bdf8",
+            ai.accentColor || "#e0f2fe",
+            false
+          );
+        }
+      }
+
       if (kart) {
-        ctx.save();
-        ctx.translate(kart.x, kart.y);
-        ctx.rotate(kart.angle);
-        ctx.fillStyle = "#f97316";
-        ctx.fillRect(-kart.width / 2, -kart.height / 2, kart.width, kart.height);
-
-        ctx.fillStyle = "#fee2e2";
-        ctx.fillRect(-kart.width / 2 + 6, -kart.height / 2 + 6, kart.width - 12, kart.height / 2);
-
-        ctx.fillStyle = "#111827";
-        const wheelW = 7;
-        const wheelH = 18;
-        ctx.fillRect(-kart.width / 2 - wheelW, -kart.height / 2 + 6, wheelW, wheelH);
-        ctx.fillRect(-kart.width / 2 - wheelW, kart.height / 2 - wheelH - 6, wheelW, wheelH);
-        ctx.fillRect(kart.width / 2, -kart.height / 2 + 6, wheelW, wheelH);
-        ctx.fillRect(kart.width / 2, kart.height / 2 - wheelH - 6, wheelW, wheelH);
-
-        ctx.restore();
+        drawKartSprite(
+          ctx,
+          kart,
+          kart.bodyColor || "#f97316",
+          kart.accentColor || "#fed7aa",
+          true
+        );
       }
     }
 
     function gameLoop(timestamp) {
       if (!gameStarted) return;
       if (!lastTime) lastTime = timestamp;
-      const dt = Math.min((timestamp - lastTime) / 16.67, 2);
+      const deltaMs = timestamp - lastTime;
       lastTime = timestamp;
+      const dt = Math.min(deltaMs / 16.67, 2);
+      const dtSeconds = deltaMs / 1000;
 
-      updateKart(dt);
+      // 根据行驶距离制造弯道感
+      curveOffset = Math.sin(roadOffset * 0.02) * 80;
+
+      if (racePhase === "countdown") {
+        countdown -= dtSeconds;
+        if (countdown > 1) {
+          raceBanner.textContent = String(Math.ceil(countdown));
+        } else if (countdown > 0) {
+          raceBanner.textContent = "GO!";
+        } else {
+          racePhase = "running";
+          raceBanner.style.display = "none";
+        }
+        // 倒计时期间，让 AI 缓慢移动
+        updateAIKart(dt * 0.5);
+      } else if (racePhase === "running") {
+        raceTime += dtSeconds;
+        hudTime.textContent = `时间：${raceTime.toFixed(1)}s`;
+        updateKart(dt);
+        updateAIKart(dt);
+      } else if (racePhase === "finished") {
+        // 终点后：AI 继续跑，人车停在终点附近
+        updateAIKart(dt);
+      }
+
+      updateRankHUD();
       drawGame();
-
       requestAnimationFrame(gameLoop);
     }
-
 
     passwordInput.addEventListener("input", () => {
       if (passwordInput.value.length >= 8) {
