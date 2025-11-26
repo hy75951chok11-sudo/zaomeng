@@ -357,6 +357,87 @@
       }
     }
 
+    .game-select {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: radial-gradient(circle at top, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.98));
+      z-index: 40;
+    }
+
+    .game-select__panel {
+      width: min(560px, 100%);
+      background: rgba(15, 23, 42, 0.96);
+      border-radius: 20px;
+      padding: 24px 24px 20px;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+      color: #e5e7eb;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+    }
+
+    .game-select__panel h2 {
+      margin: 0 0 4px;
+      font-size: 1.3rem;
+    }
+
+    .game-select__panel p {
+      margin: 0 0 16px;
+      font-size: 0.9rem;
+      color: #9ca3af;
+    }
+
+    .game-select__grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .game-select__item {
+      border-radius: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      background: radial-gradient(circle at top, rgba(30, 64, 175, 0.9), rgba(15, 23, 42, 0.95));
+      color: #e5e7eb;
+      padding: 14px 14px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+    }
+
+    .game-select__item[data-game="tank"] {
+      background: radial-gradient(circle at top, rgba(39, 103, 73, 0.9), rgba(15, 23, 42, 0.95));
+    }
+
+    .game-select__item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.7);
+      border-color: #e5e7eb;
+    }
+
+    .game-select__title {
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .game-select__desc {
+      font-size: 0.8rem;
+      color: #cbd5f5;
+    }
+
+    @media (max-width: 640px) {
+      .game-select__panel {
+        padding: 20px 16px 16px;
+      }
+      .game-select__grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     @media (max-width: 480px) {
       .card {
         padding: 28px 24px;
@@ -369,6 +450,22 @@
   </style>
 </head>
 <body>
+  <div id="game-select" class="game-select">
+    <div class="game-select__panel">
+      <h2>选择游戏模式</h2>
+      <p>先选择你要玩的游戏，然后登录开始战斗。</p>
+      <div class="game-select__grid">
+        <button type="button" class="game-select__item" data-game="kart">
+          <span class="game-select__title">造梦卡丁车</span>
+          <span class="game-select__desc">高速漂移 · 圈数竞速</span>
+        </button>
+        <button type="button" class="game-select__item" data-game="tank">
+          <span class="game-select__title">坦克大战</span>
+          <span class="game-select__desc">经典 FC · 保卫基地</span>
+        </button>
+      </div>
+    </div>
+  </div>
   <main class="card">
     <div class="brand">
       <div class="brand-logo">ZM</div>
@@ -441,6 +538,8 @@
     const card = document.querySelector(".card");
     const gameScreen = document.getElementById("game-screen");
     const gameCanvas = document.getElementById("gameCanvas");
+    const gameSelect = document.getElementById("game-select");
+    const gameSelectItems = document.querySelectorAll(".game-select__item");
     const hudPlayer = document.getElementById("hud-player");
     const hudLap = document.getElementById("hud-lap");
     const hudTime = document.getElementById("hud-time");
@@ -451,6 +550,8 @@
     const controlAccel = document.getElementById("control-accel");
     const controlBrake = document.getElementById("control-brake");
 
+    let currentGame = "kart";
+
     let gameStarted = false;
     let ctx;
     let kart;
@@ -460,6 +561,7 @@
     let roadOffset = 0;
     let curveOffset = 0;
 
+    // Kart race state
     const maxLaps = 3;
     let currentLap = 0;
     let raceTime = 0;
@@ -468,6 +570,31 @@
     let finishLineY = 0;
     let prevKartY = 0;
     let finalRank = null;
+
+    // Tank game state
+    let tankRunning = false;
+    let tankLastTime = 0;
+    let tankPlayer = null;
+    let tankEnemies = [];
+    let tankBullets = [];
+    let tankEnemyBullets = [];
+    let tankSpawnTimer = 0;
+    let tankLives = 3;
+    let tankScore = 0;
+    let tankGameOver = false;
+
+    // 选择游戏模式
+    if (gameSelectItems && gameSelectItems.length) {
+      gameSelectItems.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const mode = btn.dataset.game || "kart";
+          currentGame = mode;
+          if (gameSelect) {
+            gameSelect.style.display = "none";
+          }
+        });
+      });
+    }
 
     function bindControlButton(el, key) {
       if (!el) return;
@@ -612,7 +739,17 @@
     function enterGame(playerName) {
       card.style.display = "none";
       gameScreen.style.display = "block";
-      initGame(playerName);
+
+      if (currentGame === "tank") {
+        // 停止卡丁车循环
+        gameStarted = false;
+        // 初始化坦克大战
+        initTankGame(playerName);
+      } else {
+        // 默认进入卡丁车
+        tankRunning = false;
+        initGame(playerName);
+      }
     }
 
     window.addEventListener("keydown", (e) => {
@@ -956,7 +1093,7 @@
       const dtSeconds = deltaMs / 1000;
 
       // 根据行驶距离制造弯道感
-      curveOffset = Math.sin(roadOffset * 0.02) * 80;
+      curveOffset = Math.sin(roadOffset * 0.04) * 140;
 
       if (racePhase === "countdown") {
         countdown -= dtSeconds;
@@ -1016,3 +1153,325 @@
   </script>
 </body>
 </html>
+
+    // ===== 坦克大战：核心逻辑 =====
+
+    function initTankGame(playerName) {
+      if (!gameCanvas) return;
+      ctx = gameCanvas.getContext("2d");
+      const cw = gameCanvas.width;
+      const ch = gameCanvas.height;
+
+      tankPlayer = {
+        x: cw / 2,
+        y: ch - 80,
+        size: 32,
+        dir: "up",
+        speed: 3,
+        fireCooldown: 0
+      };
+
+      tankEnemies = [];
+      tankBullets = [];
+      tankEnemyBullets = [];
+      tankSpawnTimer = 0;
+      tankLives = 3;
+      tankScore = 0;
+      tankGameOver = false;
+
+      hudPlayer.textContent = "玩家：" + (playerName || "游客");
+      hudLap.textContent = `得分：${tankScore}`;
+      hudTime.textContent = `生命：${tankLives}`;
+      hudRank.textContent = `波次：1`;
+      raceBanner.style.display = "none";
+
+      tankRunning = true;
+      tankLastTime = 0;
+      requestAnimationFrame(tankGameLoop);
+    }
+
+    function spawnEnemyTank() {
+      const cw = gameCanvas.width;
+      const ch = gameCanvas.height;
+      const size = 32;
+      const spawnXs = [cw * 0.2, cw * 0.5, cw * 0.8];
+      const x = spawnXs[Math.floor(Math.random() * spawnXs.length)];
+      tankEnemies.push({
+        x,
+        y: 80,
+        size,
+        dir: "down",
+        speed: 1.6 + Math.random() * 0.6,
+        fireCooldown: 1 + Math.random() * 1.5
+      });
+    }
+
+    function fireBullet(owner, isEnemy) {
+      const speed = isEnemy ? 4 : 6;
+      let dx = 0;
+      let dy = 0;
+      if (owner.dir === "up") dy = -1;
+      else if (owner.dir === "down") dy = 1;
+      else if (owner.dir === "left") dx = -1;
+      else if (owner.dir === "right") dx = 1;
+
+      const arr = isEnemy ? tankEnemyBullets : tankBullets;
+      arr.push({
+        x: owner.x,
+        y: owner.y,
+        dx: dx * speed,
+        dy: dy * speed,
+        size: 6
+      });
+    }
+
+    function updateTankWorld(dt, dtSeconds) {
+      if (!tankPlayer) return;
+      const cw = gameCanvas.width;
+      const ch = gameCanvas.height;
+
+      const up = keys["ArrowUp"] || keys["w"];
+      const down = keys["ArrowDown"] || keys["s"];
+      const left = keys["ArrowLeft"] || keys["a"];
+      const right = keys["ArrowRight"] || keys["d"];
+      const fire = keys[" "];
+
+      // 玩家移动与朝向
+      if (up) {
+        tankPlayer.y -= tankPlayer.speed * dt;
+        tankPlayer.dir = "up";
+      } else if (down) {
+        tankPlayer.y += tankPlayer.speed * dt;
+        tankPlayer.dir = "down";
+      } else if (left) {
+        tankPlayer.x -= tankPlayer.speed * dt;
+        tankPlayer.dir = "left";
+      } else if (right) {
+        tankPlayer.x += tankPlayer.speed * dt;
+        tankPlayer.dir = "right";
+      }
+
+      // 边界限制
+      const margin = 24;
+      if (tankPlayer.x < margin) tankPlayer.x = margin;
+      if (tankPlayer.x > cw - margin) tankPlayer.x = cw - margin;
+      if (tankPlayer.y < margin + 40) tankPlayer.y = margin + 40;
+      if (tankPlayer.y > ch - margin) tankPlayer.y = ch - margin;
+
+      // 玩家开火冷却
+      if (tankPlayer.fireCooldown > 0) {
+        tankPlayer.fireCooldown -= dtSeconds;
+      }
+      if (fire && tankPlayer.fireCooldown <= 0 && !tankGameOver) {
+        fireBullet(tankPlayer, false);
+        tankPlayer.fireCooldown = 0.35;
+      }
+
+      // 敌人生成
+      tankSpawnTimer += dtSeconds;
+      if (tankSpawnTimer > 2 && tankEnemies.length < 5 && !tankGameOver) {
+        spawnEnemyTank();
+        tankSpawnTimer = 0;
+      }
+
+      // 敌人移动与开火
+      for (const e of tankEnemies) {
+        // 简单 AI：向玩家靠近
+        if (Math.abs(e.x - tankPlayer.x) > 12) {
+          if (tankPlayer.x < e.x) {
+            e.x -= e.speed * dt;
+            e.dir = "left";
+          } else {
+            e.x += e.speed * dt;
+            e.dir = "right";
+          }
+        } else {
+          if (tankPlayer.y < e.y) {
+            e.y -= e.speed * dt;
+            e.dir = "up";
+          } else {
+            e.y += e.speed * dt;
+            e.dir = "down";
+          }
+        }
+
+        // 敌人开火
+        if (e.fireCooldown > 0) {
+          e.fireCooldown -= dtSeconds;
+        } else if (!tankGameOver) {
+          fireBullet(e, true);
+          e.fireCooldown = 1 + Math.random() * 1.5;
+        }
+      }
+
+      // 子弹更新
+      const inBounds = (b) =>
+        b.x > -20 && b.x < cw + 20 && b.y > -20 && b.y < ch + 20;
+
+      tankBullets.forEach((b) => {
+        b.x += b.dx * dt;
+        b.y += b.dy * dt;
+      });
+      tankEnemyBullets.forEach((b) => {
+        b.x += b.dx * dt;
+        b.y += b.dy * dt;
+      });
+
+      tankBullets = tankBullets.filter(inBounds);
+      tankEnemyBullets = tankEnemyBullets.filter(inBounds);
+
+      // 玩家子弹击中敌人
+      for (let i = tankBullets.length - 1; i >= 0; i--) {
+        const b = tankBullets[i];
+        let hitIndex = -1;
+        for (let j = 0; j < tankEnemies.length; j++) {
+          const e = tankEnemies[j];
+          const half = e.size / 2;
+          if (
+            b.x > e.x - half &&
+            b.x < e.x + half &&
+            b.y > e.y - half &&
+            b.y < e.y + half
+          ) {
+            hitIndex = j;
+            break;
+          }
+        }
+        if (hitIndex !== -1) {
+          tankEnemies.splice(hitIndex, 1);
+          tankBullets.splice(i, 1);
+          tankScore += 100;
+          hudLap.textContent = `得分：${tankScore}`;
+        }
+      }
+
+      // 敌人子弹击中玩家
+      if (!tankGameOver) {
+        for (let i = tankEnemyBullets.length - 1; i >= 0; i--) {
+          const b = tankEnemyBullets[i];
+          const half = tankPlayer.size / 2;
+          if (
+            b.x > tankPlayer.x - half &&
+            b.x < tankPlayer.x + half &&
+            b.y > tankPlayer.y - half &&
+            b.y < tankPlayer.y + half
+          ) {
+            tankEnemyBullets.splice(i, 1);
+            tankLives -= 1;
+            hudTime.textContent = `生命：${tankLives}`;
+            if (tankLives <= 0) {
+              tankGameOver = true;
+              raceBanner.style.display = "block";
+              raceBanner.textContent = `基地被摧毁 · 得分 ${tankScore}`;
+            }
+          }
+        }
+      }
+    }
+
+    function drawTankGame() {
+      const cw = gameCanvas.width;
+      const ch = gameCanvas.height;
+
+      ctx.clearRect(0, 0, cw, ch);
+      ctx.fillStyle = "#020617";
+      ctx.fillRect(0, 0, cw, ch);
+
+      // 背景网格
+      ctx.strokeStyle = "rgba(30, 64, 175, 0.25)";
+      ctx.lineWidth = 1;
+      const gridSize = 24;
+      for (let x = 0; x < cw; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, ch);
+        ctx.stroke();
+      }
+      for (let y = 0; y < ch; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(cw, y);
+        ctx.stroke();
+      }
+
+      // 玩家坦克
+      if (tankPlayer) {
+        drawTankSprite(tankPlayer, true);
+      }
+
+      // 敌人坦克
+      for (const e of tankEnemies) {
+        drawTankSprite(e, false);
+      }
+
+      // 子弹
+      ctx.fillStyle = "#e5e7eb";
+      for (const b of tankBullets) {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = "#f97373";
+      for (const b of tankEnemyBullets) {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawTankSprite(t, isPlayer) {
+      const size = t.size;
+      const half = size / 2;
+      ctx.save();
+      ctx.translate(t.x, t.y);
+
+      let angle = 0;
+      if (t.dir === "up") angle = 0;
+      else if (t.dir === "right") angle = Math.PI / 2;
+      else if (t.dir === "down") angle = Math.PI;
+      else if (t.dir === "left") angle = -Math.PI / 2;
+      ctx.rotate(angle);
+
+      // 底座
+      ctx.fillStyle = isPlayer ? "#22d3ee" : "#f97316";
+      ctx.fillRect(-half, -half, size, size);
+
+      // 履带
+      ctx.fillStyle = "#020617";
+      ctx.fillRect(-half - 4, -half, 6, size);
+      ctx.fillRect(half - 2, -half, 6, size);
+
+      // 车体
+      ctx.fillStyle = isPlayer ? "#0f172a" : "#111827";
+      ctx.fillRect(-half * 0.6, -half * 0.6, size * 0.6, size * 0.6);
+
+      // 炮塔
+      ctx.fillStyle = "#e5e7eb";
+      ctx.beginPath();
+      ctx.arc(0, 0, size * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 炮管
+      ctx.strokeStyle = "#e5e7eb";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, -half - 6);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function tankGameLoop(timestamp) {
+      if (!tankRunning) return;
+      if (!tankLastTime) tankLastTime = timestamp;
+
+      const deltaMs = timestamp - tankLastTime;
+      tankLastTime = timestamp;
+      const dt = Math.min(deltaMs / 16.67, 2);
+      const dtSeconds = deltaMs / 1000;
+
+      updateTankWorld(dt, dtSeconds);
+      drawTankGame();
+      requestAnimationFrame(tankGameLoop);
+    }
