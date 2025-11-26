@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1d3ede, #47a0ff);
+      padding: 24px;
+    }
+
+    .card {
+      width: min(420px, 100%);
+      background: #fff;
+      border-radius: 20px;
+      padding: 40px 32px 32px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.2);
+      color: #1f2933;
+      transform: translateY(10px);
+      opacity: 0;
+      animation: card-in 0.6s ease-out forwards;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      color: #1d3ede;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .brand-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: #e7edff;
+      display: grid;
+      place-items: center;
+      font-size: 1.4rem;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 1.75rem;
+    }
+
+    .subtitle {
+      margin-bottom: 32px;
+      color: #6b7280;
+      font-size: 0.95rem;
+    }
+
+    label {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #374151;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    input[type="email"],
+    input[type="password"],
+    input[type="text"] {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid #d1d5db;
+      font-size: 1rem;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input:focus-visible {
+      outline: 2px solid transparent;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+    }
+
+    .field {
+      margin-bottom: 20px;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      font-size: 0.9rem;
+    }
+
+    .remember {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #4b5563;
+    }
+
+    .link {
+      color: #2563eb;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .link:hover {
+      text-decoration: underline;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      border-radius: 14px;
+      border: none;
+      background: #2563eb;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: 0 12px 18px rgba(37, 99, 235, 0.25);
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 16px 22px rgba(37, 99, 235, 0.35);
+    }
+
+    .divider {
+      margin: 24px 0;
+      text-align: center;
+      color: #9ca3af;
+      font-size: 0.85rem;
+      position: relative;
+    }
+
+    .divider::before,
+    .divider::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      width: 40%;
+      height: 1px;
+      background: #e5e7eb;
+    }
+
+    .divider::before {
+      left: 0;
+    }
+
+    .divider::after {
+      right: 0;
+    }
+
+    .social {
+      display: flex;
+      gap: 12px;
+    }
+
+    .social button {
+      flex: 1;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      color: #374151;
+      box-shadow: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .card:hover {
+      transform: translateY(6px);
+      box-shadow: 0 24px 50px rgba(0, 0, 0, 0.28);
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 8px 14px rgba(37, 99, 235, 0.2);
+    }
+
+    button[disabled] {
+      opacity: 0.75;
+      cursor: wait;
+      box-shadow: none;
+    }
+
+    .field.error input {
+      border-color: #ef4444;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
+    }
+
+    .error-text {
+      margin-top: 6px;
+      font-size: 0.8rem;
+      color: #ef4444;
+      min-height: 1em;
+    }
+    .global-error {
+      background: #ef4444;
+      color: #fff;
+      padding: 12px;
+      border-radius: 10px;
+      margin-bottom: 18px;
+      font-size: 0.9rem;
+      text-align: center;
+      display: none;
+    }
+
+
+    @keyframes card-in {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(10px);
+      }
+    }
+
+    @keyframes shake {
+      10%, 90% {
+        transform: translateX(-1px);
+      }
+
+      20%, 80% {
+        transform: translateX(2px);
+      }
+
+      30%, 50%, 70% {
+        transform: translateX(-4px);
+      }
+
+      40%, 60% {
+        transform: translateX(4px);
+      }
+    }
+
+    .shake {
+      animation: shake 0.4s ease-in-out;
+    }
+
+    #game-screen {
+      width: min(960px, 100%);
+      height: 540px;
+      border-radius: 20px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.4);
+      background: #020617;
+      overflow: hidden;
+      position: relative;
+      display: none;
+    }
+
+    #gameCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: radial-gradient(circle at top, #1f2937 0, #020617 55%);
+    }
+
+    .hud {
+      position: absolute;
+      top: 12px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.9rem;
+      color: #e5e7eb;
+      pointer-events: none;
+    }
+
+    .hud span {
+      background: rgba(15, 23, 42, 0.6);
+      padding: 6px 10px;
+      border-radius: 999px;
+      backdrop-filter: blur(8px);
+    }
+
+    @media (max-width: 480px) {
+      .card {
+        padding: 28px 24px;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">
+      <div class="brand-logo">ZM</div>
+      <span>造梦空间</span>
+    </div>
+    <h1>欢迎回来</h1>
+    <p class="subtitle">输入帐号和密码即可登录控制台。</p>
+
+    <form id="login-form">
+      <div class="field">
+        <label for="email">邮箱</label>
+        <input type="email" id="email" placeholder="name@example.com" required />
+      </div>
+
+      <div class="field" id="password-field">
+        <label for="password">密码</label>
+        <input type="text" id="password" placeholder="至少 8 位字符" minlength="8" required />
+        <div class="error-text" id="password-error"></div>
+      </div>
+
+      <div class="row">
+        <label class="remember">
+          <input type="checkbox" id="remember" />
+          <span>记住我</span>
+        </label>
+        <a class="link" href="#">忘记密码？</a>
+      </div>
+
+      <div class="global-error" id="global-error"></div>
+      <button type="submit">登录</button>
+    </form>
+
+    <p class="divider">或</p>
+
+    <div class="social">
+      <button type="button">微信登录</button>
+      <button type="button">企业邮箱</button>
+    </div>
+  </main>
+
+  <section id="game-screen">
+    <canvas id="gameCanvas" width="960" height="540"></canvas>
+    <div class="hud">
+      <span id="hud-player">玩家：游客</span>
+      <span id="hud-info">方向键移动 · 空格加速</span>
+    </div>
+  </section>
+
+  <script>
+    const form = document.getElementById("login-form");
+    const submitButton = form.querySelector('button[type="submit"]');
+    const passwordField = document.getElementById("password-field");
+    const passwordInput = document.getElementById("password");
+    const passwordError = document.getElementById("password-error");
+    const globalError = document.getElementById("global-error");
+
+    const card = document.querySelector(".card");
+    const gameScreen = document.getElementById("game-screen");
+    const gameCanvas = document.getElementById("gameCanvas");
+    const hudPlayer = document.getElementById("hud-player");
+
+    let gameStarted = false;
+    let ctx;
+    let kart;
+    let keys = {};
+    let lastTime = 0;
+    let roadOffset = 0;
+
+    function showGlobalError(message) {
+      globalError.textContent = message;
+      globalError.style.display = "block";
+    }
+
+    function clearGlobalError() {
+      globalError.textContent = "";
+      globalError.style.display = "none";
+    }
+
+    function setLoading(isLoading) {
+      if (isLoading) {
+        submitButton.disabled = true;
+        submitButton.dataset.originalText = submitButton.textContent;
+        submitButton.textContent = "登录中…";
+      } else {
+        submitButton.disabled = false;
+        submitButton.textContent = submitButton.dataset.originalText || "登录";
+      }
+    }
+
+    function showPasswordError(message) {
+      passwordField.classList.add("error");
+      passwordError.textContent = message;
+      passwordField.classList.remove("shake");
+      // 触发重绘以重新播放动画
+      void passwordField.offsetWidth;
+      passwordField.classList.add("shake");
+    }
+
+    function clearPasswordError() {
+      passwordField.classList.remove("error");
+      passwordField.classList.remove("shake");
+      passwordError.textContent = "";
+    }
+
+    function initGame(playerName) {
+      if (!gameCanvas) return;
+      ctx = gameCanvas.getContext("2d");
+      const cw = gameCanvas.width;
+      const ch = gameCanvas.height;
+
+      kart = {
+        x: cw / 2,
+        y: ch - 120,
+        width: 40,
+        height: 70,
+        speed: 0,
+        maxSpeed: 9,
+        accel: 0.35,
+        friction: 0.08,
+        turnSpeed: 0.09,
+        angle: 0
+      };
+
+      if (playerName) {
+        hudPlayer.textContent = "玩家：" + playerName;
+      }
+
+      keys = {};
+      roadOffset = 0;
+      lastTime = 0;
+      gameStarted = true;
+      requestAnimationFrame(gameLoop);
+    }
+
+    function enterGame(playerName) {
+      card.style.display = "none";
+      gameScreen.style.display = "block";
+      initGame(playerName);
+    }
+
+    window.addEventListener("keydown", (e) => {
+      keys[e.key] = true;
+    });
+
+    window.addEventListener("keyup", (e) => {
+      keys[e.key] = false;
+    });
+
+    function updateKart(dt) {
+      if (!kart) return;
+      const up = keys["ArrowUp"] || keys["w"];
+      const down = keys["ArrowDown"] || keys["s"];
+      const left = keys["ArrowLeft"] || keys["a"];
+      const right = keys["ArrowRight"] || keys["d"];
+      const boost = keys[" "];
+
+      if (up) {
+        kart.speed += kart.accel * dt * (boost ? 1.8 : 1);
+      } else if (down) {
+        kart.speed -= kart.accel * dt * 0.7;
+      } else {
+        if (kart.speed > 0) {
+          kart.speed = Math.max(0, kart.speed - kart.friction * dt);
+        } else if (kart.speed < 0) {
+          kart.speed = Math.min(0, kart.speed + kart.friction * dt);
+        }
+      }
+
+      if (kart.speed > kart.maxSpeed) kart.speed = kart.maxSpeed;
+      if (kart.speed < -kart.maxSpeed * 0.4) kart.speed = -kart.maxSpeed * 0.4;
+
+      if (kart.speed !== 0) {
+        if (left) {
+          kart.angle -= kart.turnSpeed * dt * (kart.speed > 0 ? 1 : -1);
+        }
+        if (right) {
+          kart.angle += kart.turnSpeed * dt * (kart.speed > 0 ? 1 : -1);
+        }
+      }
+
+      const rad = kart.angle;
+      const vx = Math.sin(rad) * kart.speed;
+      const vy = -Math.cos(rad) * kart.speed;
+
+      kart.x += vx;
+      kart.y += vy;
+
+      const cw = gameCanvas.width;
+      const ch = gameCanvas.height;
+      const roadWidth = cw * 0.55;
+      const roadLeft = (cw - roadWidth) / 2 + 20;
+      const roadRight = roadLeft + roadWidth - 40;
+
+      if (kart.x - kart.width / 2 < roadLeft) {
+        kart.x = roadLeft + kart.width / 2;
+        kart.speed *= 0.6;
+      }
+      if (kart.x + kart.width / 2 > roadRight) {
+        kart.x = roadRight - kart.width / 2;
+        kart.speed *= 0.6;
+      }
+
+      if (kart.y - kart.height / 2 < 60) {
+        kart.y = 60 + kart.height / 2;
+      }
+      if (kart.y + kart.height / 2 > ch - 20) {
+        kart.y = ch - 20 - kart.height / 2;
+      }
+
+      roadOffset += kart.speed * dt * 0.4;
+    }
+
+    function drawGame() {
+      const cw = gameCanvas.width;
+      const ch = gameCanvas.height;
+
+      ctx.clearRect(0, 0, cw, ch);
+
+      ctx.fillStyle = "#0f172a";
+      ctx.fillRect(0, 0, cw, ch);
+
+      const roadWidth = cw * 0.55;
+      const roadLeft = (cw - roadWidth) / 2;
+      const roadRight = roadLeft + roadWidth;
+
+      const grad = ctx.createLinearGradient(roadLeft, 0, roadRight, 0);
+      grad.addColorStop(0, "#020617");
+      grad.addColorStop(0.5, "#111827");
+      grad.addColorStop(1, "#020617");
+      ctx.fillStyle = grad;
+      ctx.fillRect(roadLeft, 0, roadWidth, ch);
+
+      ctx.strokeStyle = "#6b7280";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(roadLeft + 16, 0);
+      ctx.lineTo(roadLeft + 16, ch);
+      ctx.moveTo(roadRight - 16, 0);
+      ctx.lineTo(roadRight - 16, ch);
+      ctx.stroke();
+
+      ctx.setLineDash([18, 14]);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#f9fafb";
+      ctx.beginPath();
+      const dashY = (roadOffset % 40) - 40;
+      for (let y = dashY; y < ch + 40; y += 40) {
+        ctx.moveTo(cw / 2, y);
+        ctx.lineTo(cw / 2, y + 20);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      if (kart) {
+        ctx.save();
+        ctx.translate(kart.x, kart.y);
+        ctx.rotate(kart.angle);
+        ctx.fillStyle = "#f97316";
+        ctx.fillRect(-kart.width / 2, -kart.height / 2, kart.width, kart.height);
+
+        ctx.fillStyle = "#fee2e2";
+        ctx.fillRect(-kart.width / 2 + 6, -kart.height / 2 + 6, kart.width - 12, kart.height / 2);
+
+        ctx.fillStyle = "#111827";
+        const wheelW = 7;
+        const wheelH = 18;
+        ctx.fillRect(-kart.width / 2 - wheelW, -kart.height / 2 + 6, wheelW, wheelH);
+        ctx.fillRect(-kart.width / 2 - wheelW, kart.height / 2 - wheelH - 6, wheelW, wheelH);
+        ctx.fillRect(kart.width / 2, -kart.height / 2 + 6, wheelW, wheelH);
+        ctx.fillRect(kart.width / 2, kart.height / 2 - wheelH - 6, wheelW, wheelH);
+
+        ctx.restore();
+      }
+    }
+
+    function gameLoop(timestamp) {
+      if (!gameStarted) return;
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min((timestamp - lastTime) / 16.67, 2);
+      lastTime = timestamp;
+
+      updateKart(dt);
+      drawGame();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+
+    passwordInput.addEventListener("input", () => {
+      if (passwordInput.value.length >= 8) {
+        clearPasswordError();
+      }
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      clearGlobalError();
+
+      const email = form.email.value.trim();
+      const password = passwordInput.value;
+      const remember = form.remember.checked;
+
+      if (password.length < 8) {
+        showPasswordError("密码至少需要 8 位字符");
+        return;
+      }
+
+      clearPasswordError();
+      setLoading(true);
+
+      // 模拟调用后端接口的网络延迟
+      setTimeout(() => {
+        setLoading(false);
+        enterGame(email || "游客");
+      }, 800);
+    });
+  </script>
+</body>
+</html>
